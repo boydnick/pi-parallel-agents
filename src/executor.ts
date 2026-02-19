@@ -233,7 +233,7 @@ function extractToolArgsPreview(
 /**
  * Run a single agent task in a subprocess.
  */
-export async function runAgent(options: ExecutorOptions): Promise<TaskResult> {
+async function runAgentOnce(options: ExecutorOptions): Promise<TaskResult> {
   const {
     task,
     cwd,
@@ -510,5 +510,17 @@ export async function runAgent(options: ExecutorOptions): Promise<TaskResult> {
         /* ignore */
       }
     }
+  }
+}
+
+/** Retry wrapper — re-runs on pi lock contention (settings.json / auth.json). */
+export async function runAgent(options: ExecutorOptions): Promise<TaskResult> {
+  for (let attempt = 0; ; attempt++) {
+    const result = await runAgentOnce(options);
+    if (attempt < 3 && result.stderr.includes("Lock file is already being held")) {
+      await new Promise((r) => setTimeout(r, 50 + Math.random() * 100));
+      continue;
+    }
+    return result;
   }
 }
